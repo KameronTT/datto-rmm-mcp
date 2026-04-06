@@ -297,7 +297,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         return {
-          content: [{ type: "text", text: JSON.stringify(devices, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(devices ?? [], null, 2) }],
         };
       }
 
@@ -305,7 +305,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { deviceUid } = args as { deviceUid: string };
         const device = await client.devices.get(deviceUid);
         return {
-          content: [{ type: "text", text: JSON.stringify(device, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(device ?? {}, null, 2) }],
         };
       }
 
@@ -345,7 +345,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         return {
-          content: [{ type: "text", text: JSON.stringify(alerts, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(alerts ?? [], null, 2) }],
         };
       }
 
@@ -353,7 +353,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { alertUid } = args as { alertUid: string };
         const result = await client.alerts.resolve(alertUid);
         return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(result ?? {}, null, 2) }],
         };
       }
 
@@ -362,7 +362,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const max = params.max || 50;
         const sites = await collectItems(client.account.sitesAll(), max);
         return {
-          content: [{ type: "text", text: JSON.stringify(sites, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(sites ?? [], null, 2) }],
         };
       }
 
@@ -390,7 +390,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         const result = await client.devices.createQuickJob(deviceUid, jobRequest);
         return {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(result ?? {}, null, 2) }],
         };
       }
 
@@ -408,7 +408,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         return {
-          content: [{ type: "text", text: JSON.stringify(audit, null, 2) }],
+          content: [{ type: "text", text: JSON.stringify(audit ?? {}, null, 2) }],
         };
       }
 
