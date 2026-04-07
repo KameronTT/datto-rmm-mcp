@@ -1,3 +1,10 @@
+## [1.3.4](https://github.com/wyre-technology/datto-rmm-mcp/compare/v1.3.3...v1.3.4) (2026-04-07)
+
+
+### Bug Fixes
+
+* **ci:** deploy :latest tag, force revision via env var bump ([dbfb639](https://github.com/wyre-technology/datto-rmm-mcp/commit/dbfb63927ae6dea8862ea828467bdc554ca7fd5c))
+
 ## [1.3.3](https://github.com/wyre-technology/datto-rmm-mcp/compare/v1.3.2...v1.3.3) (2026-04-06)
 
 
