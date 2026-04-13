@@ -60,7 +60,7 @@ function createClient(creds: DattoCredentials): DattoRmmClient {
 // Server factory — creates a fresh server per request (stateless HTTP mode)
 // ---------------------------------------------------------------------------
 
-function createMcpServer(): Server {
+function createMcpServer(credentialOverrides?: DattoCredentials): Server {
   const server = new Server(
     {
       name: "datto-rmm-mcp",
@@ -243,7 +243,7 @@ async function collectItems<T>(
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  const creds = getCredentials();
+  const creds = credentialOverrides ?? getCredentials();
 
   if (!creds) {
     return {
@@ -481,7 +481,9 @@ async function startHttpTransport(): Promise<void> {
         return;
       }
 
-      // In gateway mode, extract credentials from headers
+      // In gateway mode, extract credentials from headers and pass directly
+      // to avoid process.env race conditions under concurrent load
+      let gatewayCredentials: DattoCredentials | undefined;
       if (isGatewayMode) {
         const headers = req.headers as Record<string, string | string[] | undefined>;
         const apiKey = headers["x-datto-api-key"] as string | undefined;
@@ -498,15 +500,15 @@ async function startHttpTransport(): Promise<void> {
           return;
         }
 
-        process.env.DATTO_API_KEY = apiKey;
-        process.env.DATTO_API_SECRET = apiSecret;
-        if (platform) {
-          process.env.DATTO_PLATFORM = platform;
-        }
+        const validPlatforms: Platform[] = ["pinotage", "merlot", "concord", "vidal", "zinfandel", "syrah"];
+        const resolvedPlatform = platform && validPlatforms.includes(platform as Platform)
+          ? (platform as Platform)
+          : "concord";
+        gatewayCredentials = { apiKey, apiSecretKey: apiSecret, platform: resolvedPlatform };
       }
 
       // Stateless: create fresh server + transport for each request
-      const server = createMcpServer();
+      const server = createMcpServer(gatewayCredentials);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
