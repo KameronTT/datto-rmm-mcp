@@ -64,15 +64,21 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: docker/setup-buildx-action@v3
+
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -82,12 +88,15 @@ jobs:
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
+            type=sha,format=long,prefix=sha-
             type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Get version
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -96,9 +105,19 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.repository }}:v${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Output image digest
+        run: |
+          echo "### Docker Image Published" >> $GITHUB_STEP_SUMMARY
+          echo "- **Latest:** ghcr.io/${{ github.repository }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ghcr.io/${{ github.repository }}:v${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **SHA pin:** ghcr.io/${{ github.repository }}:sha-${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Digest:** ${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
+
       - name: Get released version
         id: release-version
         env:
@@ -117,47 +136,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BUNDLE_NAME=$(node -p "require('./package.json').name.replace(/^@.*\\//, '')")
+          BUNDLE_NAME=$(node -p "require('./package.json').name.replace(/^@.*\//, '')")
           npm install -g @anthropic-ai/mcpb
           npm run pack:mcpb
           gh release upload "v${{ steps.release-version.outputs.version }}" "${BUNDLE_NAME}.mcpb" \
             --repo ${{ github.repository }} --clobber
-      - name: Discord release notification
-        if: false  # disabled - too noisy, re-enable later
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
-        run: |
-          VERSION="${{ steps.release-version.outputs.version }}"
-          BODY=$(gh release view "v$VERSION" --json body --jq '.body' 2>/dev/null || echo "")
-          SUMMARY=$(echo "$BODY" | sed '1,2d' | head -30 | cut -c1-1800)
-          DESC="**${{ github.repository }}** — [v${VERSION}](https://github.com/${{ github.repository }}/releases/tag/v${VERSION})"$'\n'"${SUMMARY}"
-          PAYLOAD=$(jq -n --arg title "New Release: v${VERSION}" --arg desc "$DESC" '{embeds: [{title: $title, description: $desc, color: 5763847}]}')
-          curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK"
-  deploy:
-    name: Deploy to Azure Container Apps
-    runs-on: ubuntu-latest
-    needs: [docker]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    environment: production
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - name: Azure login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Deploy to Azure Container Apps
-        run: |
-          SHORT_SHA="${GITHUB_SHA::7}"
-          IMAGE="ghcr.io/${{ github.repository }}:latest"
-          echo "Deploying $IMAGE to mcpgw-prod-datto-rmm (revision tag sha-${SHORT_SHA}-${GITHUB_RUN_ID})"
-          az containerapp update \
-            --name mcpgw-prod-datto-rmm \
-            --resource-group mcp-gateway-prod \
-            --image "$IMAGE" \
-            --set-env-vars "IMAGE_VERSION=sha-${SHORT_SHA}-${GITHUB_RUN_ID}"
+  # --- Azure deploy job REMOVED ---
+  # TRACKtown deployment uses DigitalOcean droplet + Cloudflare Tunnel.
+  # Image is pulled from GHCR directly via docker compose on the droplet.
+  # To deploy: docker compose pull && docker compose up -d on the droplet.
